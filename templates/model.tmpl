@@ -1,0 +1,144 @@
+{{- $table := .Name -}}
+// Code generated. DO NOT EDIT.
+
+package model
+
+import (
+	"encoding/json"
+  {{if .Integer}}
+  "strconv"
+
+  {{end}}
+ "strings"
+
+  {{if .Time}}  "time"{{end}}
+	"my/server/config"
+	"io/ioutil"
+	"os"
+	"fmt"
+)
+
+
+
+type {{ $table }} struct {
+
+{{- range .Fields }}
+	{{ .FieldName }} {{  .FIELD_TYPE }} `json:"{{ .Json }}"` // {{  .FieldName }}
+{{- end }}
+}
+
+type {{ $table }}List struct {
+   Recs []{{ $table }} `json:"{{ .Json }}"`
+}
+
+func  (ob {{$table}}) Create() error{
+    sqlstr := `create table {{ $table }}  ({{ .Spisok }})
+                         CONSTRAINT CODETEL_PK PRIMARY KEY (ID));`
+    _, err := config.DB.Exec(sqlstr)
+   	if err != nil {
+   	   return err
+	}
+	return nil
+}
+
+func (ob {{$table}}) Delete() error{
+   const sqlstr = `DELETE FROM {{ $table }}  WHERE ID =  ?`
+		_, err := config.DB.Exec(sqlstr, ob.ID)
+		if err != nil {
+			return err
+		}
+		return nil
+}
+
+func (ob {{$table}}) Save() error{
+   sqlstr := "update or insert into  {{ $table }}  ({{ .Spisok }}) "+
+   " values ({{ .Vopr }})" +
+   " matching (ID)"
+   _, err := config.DB.Exec(sqlstr,  {{ .Spisokob }})
+   if err != nil {
+     return err
+   }
+   return nil
+}
+
+func (ob {{$table}}) Read(id string) error{
+   const sqlstr = `select * FROM {{ $table }}  WHERE ID =  ?`
+   row := config.DB.QueryRow(sqlstr, id)
+   err := row.Scan({{- range .Fields }} &ob.{{ .FieldName }}, {{- end }})
+   if err != nil {
+	 return err
+   }
+   return nil
+}
+
+func (ob {{.Name}}) ReadFromJson(file string){
+	var recs {{ .Name }}List
+
+	jsonFile, err := os.Open(file)
+	defer jsonFile.Close()
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(byteValue, &recs)
+
+	for i := 0; i < len(recs.Recs); i++ {
+{{- range .Fields }}
+	   ob.{{ .FieldName }} = recs.Recs[i].{{ .FieldName }}
+{{- end }}
+	   ob.Save()
+	}
+
+}
+
+func  (ob {{.Name}})  TmplElem(id string) string{
+   
+	v := listform{
+		Name:  "listform",
+		Title: "{{.Form}}",
+		Stroki: []arrayFieldSection{
+			{
+      {{- range .Fields }}
+	  		Fields: []FieldSection{
+					{
+						Name:     "{{ .Form }}",
+						Value:    ob.{{ .FieldName }},
+						Buttons: "",
+					},
+				},
+			},
+{{- end }}
+
+		
+		Buttons: []Button{
+			{
+				Name:       "Войти",
+				Parameters: "login",
+				Image:      "",
+			},
+			{
+				Name:       "Отмена",
+				Parameters: "cancel",
+				Image:      "",
+			},
+		},
+	}
+
+	output, err := xml.Marshal(v)
+	if err != nil {
+		fmt.Printf("error: %v\n", err)
+	}
+
+	return string(output)
+
+}
+
+func  (ob {{.Name}})  FormSpisok() string{
+ret := ""
+
+
+
+ 
+ 
+return ret
+}
