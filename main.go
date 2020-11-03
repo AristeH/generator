@@ -55,6 +55,7 @@ type SchemaMetaData struct {
 	ViewsMetaData  []MetaTable
 }
 
+// SMD - метаданные приложения
 var SMD SchemaMetaData
 
 var templates *template.Template
@@ -96,7 +97,7 @@ func initmap() {
 	mapnames["TABLE"] = MetaData{"TABLE", "TABLE", "TABLE", ""}
 }
 
-func SetTable(name string, f Fields) {
+func setTable(name string, f Fields) {
 
 	tek := -1
 	for i := range SMD.TablesMetaData {
@@ -218,7 +219,7 @@ func main() {
 		if err := rows.Scan(&RELATION_NAME, &f.FieldName, &f.FIELD_LENGTH, &f.FIELD_TYPE, &f.FIELD_SCALE); err != nil {
 			fmt.Println(err)
 		}
-		SetTable(RELATION_NAME, f)
+		setTable(RELATION_NAME, f)
 	}
 
 	tmpl, err := template.ParseFiles("E:/Aristeh/go/src/пппппп/generator/model.tmpl")
