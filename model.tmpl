@@ -1,21 +1,17 @@
-{{- $table := .Name -}}
+{{- $table := .View.Name -}}
 // Code generated. DO NOT EDIT.
 
 package model
 
 import (
+	"encoding/xml"
 	"encoding/json"
-  {{if .Integer}}
-  "strconv"
-
-  {{end}}
- "strings"
-
-  {{if .Time}}  "time"{{end}}
-	"my/server/config"
+	{{if .Integer}}  "strconv" {{end}}
+    {{if .Time}}  "time"{{end}}
 	"io/ioutil"
 	"os"
 	"fmt"
+	"пппппп/server/config"
 )
 
 
@@ -23,12 +19,12 @@ import (
 type {{ $table }} struct {
 
 {{- range .Fields }}
-	{{ .FieldName }} {{  .FIELD_TYPE }} `json:"{{ .Json }}"` // {{  .FieldName }}
+	{{ .FieldName }} {{  .FIELD_TYPE }} `json:"{{ .View.TagJson }}"` // {{  .FieldName }}
 {{- end }}
 }
 
 type {{ $table }}List struct {
-   Recs []{{ $table }} `json:"{{ .Json }}"`
+   Recs []{{ $table }} `json:"{{ .View.TagJson }}"`
 }
 
 func  (ob {{$table}}) Create() error{
@@ -71,8 +67,8 @@ func (ob {{$table}}) Read(id string) error{
    return nil
 }
 
-func (ob {{.Name}}) ReadFromJson(file string){
-	var recs {{ .Name }}List
+func (ob {{.View.Name}}) ReadFromJson(file string){
+	var recs {{ .View.Name }}List
 
 	jsonFile, err := os.Open(file)
 	defer jsonFile.Close()
@@ -91,25 +87,28 @@ func (ob {{.Name}}) ReadFromJson(file string){
 
 }
 
-func  (ob {{.Name}})  TmplElem(id string) string{
+func  (ob {{.View.Name}})  TmplElem(id string) string{
    
-	v := listform{
-		Name:  "listform",
-		Title: "{{.Form}}",
+	v := ListForm{
+		Name:  "ListForm",
+		Title: "{{.View.Form}}",
 		Stroki: []arrayFieldSection{
-			{
-      {{- range .Fields }}
-	  		Fields: []FieldSection{
+        {{- range .Fields }}
+	        { 
+	  		    Fields: []FieldSection{
 					{
-						Name:     "{{ .Form }}",
-						Value:    ob.{{ .FieldName }},
-						Buttons: "",
+						Name:     "{{ .View.Form }}",
+						Value: {{if  eq .FIELD_TYPE "string"}}  ob.{{ .FieldName }}, {{end}}
+							   {{if  eq .FIELD_TYPE "int"}}   strconv.Itoa(ob.{{ .FieldName }}), {{end}}
+							   {{if  eq .FIELD_TYPE "bool"}}   strconv.FormatBool(ob.{{ .FieldName }}), {{end}} 
+							    {{if  eq .FIELD_TYPE "time.Time"}}   ob.{{ .FieldName }}.Format("2006/01/02"), {{end}}       
+    					Buttons: "",
 					},
 				},
 			},
-{{- end }}
+        {{- end }}
 
-		
+		},
 		Buttons: []Button{
 			{
 				Name:       "Войти",
@@ -133,7 +132,7 @@ func  (ob {{.Name}})  TmplElem(id string) string{
 
 }
 
-func  (ob {{.Name}})  FormSpisok() string{
+func  (ob {{.View.Name}})  FormSpisok() string{
 ret := ""
 
 

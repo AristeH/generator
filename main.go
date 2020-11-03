@@ -12,32 +12,31 @@ import (
 	_ "github.com/nakagami/firebirdsql"
 )
 
+// MetaData - дополнительное описание объекта для представления
 type MetaData struct {
-	Name        string
-	Json        string
-	Form        string
-	Description string
+	Name        string // имя элемента
+	TagJSON     string // тег для обмен в формате Json
+	Form        string // имя для отображения на форме
+	Description string // краткое описание объекта
 }
 
 var mapnames = make(map[string]MetaData)
 
+// Fields - поля таблиц базы данных
 type Fields struct {
 	FieldName      string
 	FIELD_TYPE     string
 	FIELD_LENGTH   int
 	FIELD_SCALE    string
 	FIELD_SUB_TYPE string
-	Json           string
-	Form           string
 	Create         string
 	Query          string
+	View           MetaData
 }
 
+// MetaTable - таблицы базы данных
 type MetaTable struct {
 	Fields   []Fields //список полей таблицы
-	Name     string   // имя таблицы
-	Json     string   // тег json
-	Form     string   // имя формы
 	Type     string   // тип таблицы
 	Spisok   string
 	Spisokob string
@@ -46,6 +45,8 @@ type MetaTable struct {
 	Vopr     string
 	Integer  bool
 	Time     bool
+	String   bool
+	View     MetaData
 }
 
 // SchemaMetaData struct
@@ -55,6 +56,7 @@ type SchemaMetaData struct {
 }
 
 var SMD SchemaMetaData
+
 var templates *template.Template
 
 // инициализация вспомогательных данных
@@ -98,16 +100,16 @@ func SetTable(name string, f Fields) {
 
 	tek := -1
 	for i := range SMD.TablesMetaData {
-		if SMD.TablesMetaData[i].Name == strings.TrimSpace(name) {
+		if SMD.TablesMetaData[i].View.Name == strings.TrimSpace(name) {
 			tek = i
 			break
 		}
 	}
 	if tek == -1 {
 		tab := new(MetaTable)
-		tab.Name = strings.TrimSpace(name)
-		tab.Json = mapnames[strings.TrimSpace(name)].Json
-		tab.Form = mapnames[strings.TrimSpace(name)].Form
+		tab.View.Name = strings.TrimSpace(name)
+		tab.View.TagJSON = mapnames[strings.TrimSpace(name)].TagJSON
+		tab.View.Form = mapnames[strings.TrimSpace(name)].Form
 		tab.Fields = make([]Fields, 0, 20)
 		SMD.TablesMetaData = append(SMD.TablesMetaData, *tab)
 		tek = len(SMD.TablesMetaData) - 1
@@ -116,8 +118,8 @@ func SetTable(name string, f Fields) {
 	fi := new(Fields)
 	fi.FIELD_TYPE = f.FIELD_TYPE
 	fi.FieldName = strings.TrimSpace(f.FieldName)
-	fi.Json = mapnames[strings.TrimSpace(f.FieldName)].Json
-	fi.Form = mapnames[strings.TrimSpace(f.FieldName)].Form
+	fi.View.TagJSON = mapnames[strings.TrimSpace(f.FieldName)].TagJSON
+	fi.View.Form = mapnames[strings.TrimSpace(f.FieldName)].Form
 	fi.FIELD_LENGTH = f.FIELD_LENGTH / 4
 	switch strings.TrimSpace(fi.FIELD_TYPE) {
 	case "14":
@@ -147,17 +149,30 @@ func SetTable(name string, f Fields) {
 		fi.FIELD_TYPE = "string"
 		fi.Query = "obj." + fi.FieldName
 	}
+
+	if fi.FIELD_TYPE == "string" {
+		SMD.TablesMetaData[tek].String = true
+	}
+	if fi.FIELD_TYPE == "int" {
+
+		SMD.TablesMetaData[tek].Integer = true
+	}
+	if fi.FIELD_TYPE == "time.Time" {
+
+		SMD.TablesMetaData[tek].Time = true
+	}
+
 	SMD.TablesMetaData[tek].Fields = append(SMD.TablesMetaData[tek].Fields, *fi)
 
 	if SMD.TablesMetaData[tek].Row == "" {
 		if fi.FieldName != "ID" {
 			SMD.TablesMetaData[tek].Row = "`<td>` +strings.TrimSpace(" + fi.Query + ")+`</td>`"
-			SMD.TablesMetaData[tek].Shapka = "<th .sortable>" + fi.Form + "</th>"
+			SMD.TablesMetaData[tek].Shapka = "<th .sortable>" + fi.View.Form + "</th>"
 		}
 	} else {
 		if fi.FieldName != "ID" {
 			SMD.TablesMetaData[tek].Row = SMD.TablesMetaData[tek].Row + "+`<td>`+strings.TrimSpace(" + fi.Query + ")+`</td>`"
-			SMD.TablesMetaData[tek].Shapka = SMD.TablesMetaData[tek].Shapka + "<th .sortable>" + fi.Form + "</th>"
+			SMD.TablesMetaData[tek].Shapka = SMD.TablesMetaData[tek].Shapka + "<th .sortable>" + fi.View.Form + "</th>"
 		}
 	}
 	if SMD.TablesMetaData[tek].Spisok == "" {
@@ -170,17 +185,6 @@ func SetTable(name string, f Fields) {
 		SMD.TablesMetaData[tek].Spisokob = SMD.TablesMetaData[tek].Spisokob + ", " + "ob." + fi.FieldName
 		SMD.TablesMetaData[tek].Vopr = SMD.TablesMetaData[tek].Vopr + ", ?"
 
-		if fi.FIELD_TYPE == "string" {
-
-		}
-		if fi.FIELD_TYPE == "int" {
-
-			SMD.TablesMetaData[tek].Integer = true
-		}
-		if fi.FIELD_TYPE == "time.Time" {
-
-			SMD.TablesMetaData[tek].Time = true
-		}
 	}
 
 }
@@ -217,15 +221,15 @@ func main() {
 		SetTable(RELATION_NAME, f)
 	}
 
-	tmpl, err := template.ParseFiles("E:/Aristeh/go/src/пппппп/generator/templates/model.tmpl")
+	tmpl, err := template.ParseFiles("E:/Aristeh/go/src/пппппп/generator/model.tmpl")
 	//	tmpl, err := template.ParseFiles("C:/GOPATH/src/my/generator/templates/model.tmpl")
 	if err != nil {
 		fmt.Println(err)
 	}
 	s := SMD.TablesMetaData
 	for i := range s {
-		if s[i].Name != "" {
-			file, _ := os.Create("E:/Aristeh/go/src/пппппп/server/model/" + s[i].Name + ".go")
+		if s[i].View.Name != "" {
+			file, _ := os.Create("E:/Aristeh/go/src/пппппп/server/model/" + s[i].View.Name + ".go")
 			//file, _ := os.Create("C:/GOPATH/src/my/server/model/" + s[i].Name + ".go")
 			tmpl.Execute(file, SMD.TablesMetaData[i])
 		}
