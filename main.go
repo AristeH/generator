@@ -192,6 +192,7 @@ func setTable(name string, f Fields) {
 
 func main() {
 	initmap()
+	// Подключение к базе на основе которой генериться код
 	conn, err := sqlx.Open("firebirdsql", "sysdba:masterkey@localhost:3050/C:/obmen/FIRST.fdb?auth_plugin_name=Legacy_Auth&wire_auth=true&column_name_to_lower=false")
 	SMD.TablesMetaData = make([]MetaTable, 0, 20)
 
@@ -221,17 +222,18 @@ func main() {
 		}
 		setTable(RELATION_NAME, f)
 	}
-
-	tmpl, err := template.ParseFiles("E:/Aristeh/go/src/пппппп/generator/model.tmpl")
-	//	tmpl, err := template.ParseFiles("C:/GOPATH/src/my/generator/templates/model.tmpl")
+    // путь к катологу в котором пишется пользовательский код
+	//tmpl, err := template.ParseFiles("E:/Aristeh/go/src/пппппп/generator/model.tmpl")
+	tmpl, err := template.ParseFiles("C:/csharp/проект/generator/model.tmpl")
 	if err != nil {
 		fmt.Println(err)
 	}
 	s := SMD.TablesMetaData
 	for i := range s {
 		if s[i].View.Name != "" {
-			file, _ := os.Create("E:/Aristeh/go/src/пппппп/server/model/" + s[i].View.Name + ".go")
-			//file, _ := os.Create("C:/GOPATH/src/my/server/model/" + s[i].Name + ".go")
+			//file, _ := os.Create("E:/Aristeh/go/src/пппппп/server/model/" + s[i].View.Name + ".go")
+			file, _ := os.Create("C:/csharp/проект/server/model/" + s[i].View.Name+ ".go")
+		
 			tmpl.Execute(file, SMD.TablesMetaData[i])
 		}
 	}

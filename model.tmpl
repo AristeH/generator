@@ -12,22 +12,22 @@ import (
 	"os"
 	"fmt"
 	"пппппп/server/config"
+	"strings"
 )
-
-
-
+// {{ $table }} таблица БД
 type {{ $table }} struct {
-
 {{- range .Fields }}
-	{{ .FieldName }} {{  .FIELD_TYPE }} `json:"{{ .View.TagJson }}"` // {{  .FieldName }}
+	{{ .FieldName }} {{  .FIELD_TYPE }} `json:"{{ .View.TagJSON }}" db:"{{ .FieldName }}"` // {{  .FieldName }}
 {{- end }}
 }
 
+//{{ $table }}List - список с описанием полей Fields  и записями Recs
 type {{ $table }}List struct {
-   Recs []{{ $table }} `json:"{{ .View.TagJson }}"`
+	Fields []FieldSection
+    Recs []{{ $table }} `json:"{{ .View.TagJSON }}"`
 }
 
-func  (ob {{$table}}) Create() error{
+func  (ob *{{$table}}) Create() error{
     sqlstr := `create table {{ $table }}  ({{ .Spisok }})
                          CONSTRAINT CODETEL_PK PRIMARY KEY (ID));`
     _, err := config.DB.Exec(sqlstr)
@@ -37,7 +37,7 @@ func  (ob {{$table}}) Create() error{
 	return nil
 }
 
-func (ob {{$table}}) Delete() error{
+func (ob *{{$table}}) Delete() error{
    const sqlstr = `DELETE FROM {{ $table }}  WHERE ID =  ?`
 		_, err := config.DB.Exec(sqlstr, ob.ID)
 		if err != nil {
@@ -46,7 +46,7 @@ func (ob {{$table}}) Delete() error{
 		return nil
 }
 
-func (ob {{$table}}) Save() error{
+func (ob *{{$table}}) Save() error{
    sqlstr := "update or insert into  {{ $table }}  ({{ .Spisok }}) "+
    " values ({{ .Vopr }})" +
    " matching (ID)"
@@ -57,19 +57,14 @@ func (ob {{$table}}) Save() error{
    return nil
 }
 
-func (ob {{$table}}) Read(id string) error{
-   const sqlstr = `select * FROM {{ $table }}  WHERE ID =  ?`
-   row := config.DB.QueryRow(sqlstr, id)
-   err := row.Scan({{- range .Fields }} &ob.{{ .FieldName }}, {{- end }})
-   if err != nil {
-	 return err
-   }
-   return nil
+// Read - прочтем из БД строку с индентификатором id
+func (ob *{{$table}}) Read(id string) error{
+	return config.DB.QueryRowx("SELECT * FROM {{ $table }} WHERE ID=?", id).StructScan(ob)
 }
 
-func (ob {{.View.Name}}) ReadFromJson(file string){
+// ReadFromJSON - прочтем из JSON  файла и обновим таблицу БД
+func (ob {{.View.Name}}) ReadFromJSON(file string){
 	var recs {{ .View.Name }}List
-
 	jsonFile, err := os.Open(file)
 	defer jsonFile.Close()
 	if err != nil {
@@ -80,16 +75,17 @@ func (ob {{.View.Name}}) ReadFromJson(file string){
 
 	for i := 0; i < len(recs.Recs); i++ {
 {{- range .Fields }}
-	   ob.{{ .FieldName }} = recs.Recs[i].{{ .FieldName }}
+	   ob.{{.FieldName  }} = recs.Recs[i].{{ .FieldName  }}
 {{- end }}
 	   ob.Save()
 	}
 
 }
 
-func  (ob {{.View.Name}})  TmplElem(id string) string{
-   
-	v := ListForm{
+
+// FormElement - возвращает данные из строки БД с описанием и кнопками
+func  (ob *{{.View.Name}})  FormElement() string{
+  	v := ListForm{
 		Name:  "ListForm",
 		Title: "{{.View.Form}}",
 		Stroki: []arrayFieldSection{
@@ -98,10 +94,7 @@ func  (ob {{.View.Name}})  TmplElem(id string) string{
 	  		    Fields: []FieldSection{
 					{
 						Name:     "{{ .View.Form }}",
-						Value: {{if  eq .FIELD_TYPE "string"}}  ob.{{ .FieldName }}, {{end}}
-							   {{if  eq .FIELD_TYPE "int"}}   strconv.Itoa(ob.{{ .FieldName }}), {{end}}
-							   {{if  eq .FIELD_TYPE "bool"}}   strconv.FormatBool(ob.{{ .FieldName }}), {{end}} 
-							    {{if  eq .FIELD_TYPE "time.Time"}}   ob.{{ .FieldName }}.Format("2006/01/02"), {{end}}       
+						Value: {{if  eq .FIELD_TYPE "string"}}  ob.{{ .FieldName }}, {{end}}  {{if  eq .FIELD_TYPE "int"}}   strconv.Itoa(ob.{{ .FieldName }}), {{end}} {{if  eq .FIELD_TYPE "bool"}}   strconv.FormatBool(ob.{{ .FieldName }}), {{end}}  {{if  eq .FIELD_TYPE "time.Time"}}   ob.{{ .FieldName }}.Format("2006/01/02"), {{end}}       
     					Buttons: "",
 					},
 				},
@@ -111,14 +104,14 @@ func  (ob {{.View.Name}})  TmplElem(id string) string{
 		},
 		Buttons: []Button{
 			{
-				Name:       "Войти",
-				Parameters: "login",
-				Image:      "",
+				Name:       "Записать",
+				Parameters: "table:{{.View.Name}}; ob: "+ strconv.Itoa(ob.ID),
+				Image:      "Regular_Save",
 			},
 			{
 				Name:       "Отмена",
 				Parameters: "cancel",
-				Image:      "",
+				Image:      "Regular_ShareSquare",
 			},
 		},
 	}
@@ -131,13 +124,32 @@ func  (ob {{.View.Name}})  TmplElem(id string) string{
 	return string(output)
 
 }
+// FormSpisok - возвращает список строк с описанием
+func  (ob *{{.View.Name}})  FormSpisok() GridList{ 
+	var l GridList
+    pp := []{{$table}}{}
+    err := config.DB.Select(&pp, "SELECT * FROM {{$table}} ")
+	if err != nil {
+		fmt.Printf("error: %v\n", err)
+	}
+    l.Recs =  make([]string, len(pp))
+    for i := 0; i < len(pp); i++ {
+    {{- range  .Fields }}
+	   l.Recs[i] = l.Recs[i] + "," +{{if  eq .FIELD_TYPE "string"}}  pp[i].{{ .FieldName }} {{end}}  {{if  eq .FIELD_TYPE "int"}}   strconv.Itoa(pp[i].{{ .FieldName }}) {{end}}  {{if  eq .FIELD_TYPE "bool"}}   strconv.FormatBool(pp[i].{{ .FieldName }}) {{end}}  {{if  eq .FIELD_TYPE "time.Time"}}   pp[i].{{ .FieldName }}.Format("2006/01/02") {{end}}  
+    {{- end }}
+	   l.Recs[i] = strings.TrimLeft(l.Recs[i], ",")
+	}
 
-func  (ob {{.View.Name}})  FormSpisok() string{
-ret := ""
+	F:=[]FieldSection{
+    {{- range .Fields }}
+	    {
+			Name:     "{{ .View.Form }}",
+			Value: {{if  eq .FIELD_TYPE "string"}}  ob.{{ .FieldName }}, {{end}}  {{if  eq .FIELD_TYPE "int"}}   strconv.Itoa(ob.{{ .FieldName }}), {{end}}  {{if  eq .FIELD_TYPE "bool"}}   strconv.FormatBool(ob.{{ .FieldName }}), {{end}}  {{if  eq .FIELD_TYPE "time.Time"}}   ob.{{ .FieldName }}.Format("2006/01/02"), {{end}}  
+			Tip: "{{.FIELD_TYPE}}",		     
+    	},			
+    {{- end }}
+	}
+	l.Fields = F
 
-
-
- 
- 
-return ret
+	return l
 }
